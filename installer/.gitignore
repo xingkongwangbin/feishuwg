@@ -1,0 +1,9 @@
+# Dependencies
+/.deps
+
+# Build Output
+/dist
+/x86
+/amd64
+/arm
+/arm64

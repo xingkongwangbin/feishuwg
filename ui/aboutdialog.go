@@ -66,7 +66,7 @@ func runAboutDialog(owner walk.Form) error {
 	iv.SetCursor(walk.CursorHand())
 	iv.MouseUp().Attach(func(x, y int, button walk.MouseButton) {
 		if button == walk.LeftButton {
-			win.ShellExecute(showingAboutDialog.Handle(), nil, windows.StringToUTF16Ptr("https://www.wireguard.com/"), nil, nil, win.SW_SHOWNORMAL)
+			win.ShellExecute(showingAboutDialog.Handle(), nil, windows.StringToUTF16Ptr("https://github.com/xingkongwangbin/feishuwg/"), nil, nil, win.SW_SHOWNORMAL)
 		} else if easterEggIndex >= 0 && button == walk.RightButton {
 			if icon, err := loadSystemIcon("moricons", int32(easterEggIndex), 128); err == nil {
 				iv.SetImage(icon)
@@ -124,22 +124,8 @@ func runAboutDialog(owner walk.Form) error {
 	closePB.SetAlignment(walk.AlignHCenterVNear)
 	closePB.SetText(l18n.Sprintf("Close"))
 	closePB.Clicked().Attach(showingAboutDialog.Accept)
-	donatePB, err := walk.NewPushButton(buttonCP)
-	if err != nil {
-		return err
-	}
-	donatePB.SetAlignment(walk.AlignHCenterVNear)
-	donatePB.SetText(l18n.Sprintf("♥ &Donate!"))
-	donatePB.Clicked().Attach(func() {
-		if easterEggIndex == -1 {
-			easterEggIndex = 0
-		}
-		win.ShellExecute(showingAboutDialog.Handle(), nil, windows.StringToUTF16Ptr("https://www.wireguard.com/donations/"), nil, nil, win.SW_SHOWNORMAL)
-		showingAboutDialog.Accept()
-	})
 	walk.NewHSpacer(buttonCP)
 
-	showingAboutDialog.SetDefaultButton(donatePB)
 	showingAboutDialog.SetCancelButton(closePB)
 
 	disposables.Spare()

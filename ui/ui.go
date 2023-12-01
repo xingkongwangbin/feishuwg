@@ -79,7 +79,7 @@ func RunUI() {
 					tray.UpdateFound()
 				}
 			case manager.UpdateStateUpdatesDisabledUnofficialBuild:
-				mtw.SetTitle(l18n.Sprintf("%s (unsigned build, no updates)", mtw.Title()))
+				mtw.SetTitle(mtw.Title())
 			}
 		})
 	}

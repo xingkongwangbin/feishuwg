@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -62,6 +63,7 @@ const (
 	QuitMethodType
 	UpdateStateMethodType
 	UpdateMethodType
+	LogMethodType
 )
 
 var (
@@ -284,6 +286,14 @@ func (t *Tunnel) Start() (err error) {
 		}
 
 		if len(hip[v.Endpoint.Host]) == 0 {
+			if err = rpcEncoder.Encode(LogMethodType); err != nil {
+				return
+			}
+
+			if err = rpcEncoder.Encode(fmt.Sprintf("解析域名[%s]ip失败", v.Endpoint.Host)); err != nil {
+				return
+			}
+
 			err = fmt.Errorf("解析域名[%s]ip失败", v.Endpoint.Host)
 			t.Stop()
 			return
@@ -334,6 +344,11 @@ func (t *Tunnel) Toggle() (oldState TunnelState, err error) {
 }
 
 func (t *Tunnel) ListenIp(name string, cf conf.Config, hip map[string][]string) {
+	var (
+		err                error
+		host, newIP, oldIP string
+	)
+
 Loop:
 	for {
 		if !runningTunnelMap[name] {
@@ -355,12 +370,25 @@ Loop:
 				}
 
 				if !isExist {
+					host = v.Endpoint.Host
+					for _, ip := range newIPs {
+						newIP = newIP + "," + ip.String()
+					}
+					oldIP = strings.Join(hip[v.Endpoint.Host], ",")
 					break Loop
 				}
 			}
 		}
 
-		time.Sleep(time.Second * 2)
+		time.Sleep(time.Second * 30)
+	}
+
+	if err = rpcEncoder.Encode(LogMethodType); err != nil {
+		return
+	}
+
+	if err = rpcEncoder.Encode(fmt.Sprintf("[%s] host:%s, ip发生改变,原ip为: %s  新ip为: %s", name, host, oldIP, newIP)); err != nil {
+		return
 	}
 
 	t.Toggle()

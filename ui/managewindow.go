@@ -23,6 +23,7 @@ type ManageTunnelsWindow struct {
 	tabs        *walk.TabWidget
 	tunnelsPage *TunnelsPage
 	logPage     *LogPage
+	natPage     *NatPage
 	updatePage  *UpdatePage
 
 	tunnelChangedCB *manager.TunnelChangeCallback
@@ -34,9 +35,12 @@ const (
 	aboutWireGuardCmd       = 0x37
 )
 
-var taskbarButtonCreatedMsg uint32
-
-var initedManageTunnels sync.Once
+var (
+	taskbarButtonCreatedMsg uint32
+	initedManageTunnels     sync.Once
+	minSize                 = walk.Size{Width: 500, Height: 400}
+	maxSize                 = walk.Size{Width: 675, Height: 525}
+)
 
 func NewManageTunnelsWindow() (*ManageTunnelsWindow, error) {
 	initedManageTunnels.Do(func() {
@@ -77,8 +81,8 @@ func NewManageTunnelsWindow() (*ManageTunnelsWindow, error) {
 
 	mtw.SetTitle("飞鼠科技")
 	mtw.SetFont(font)
-	mtw.SetSize(walk.Size{Width: 675, Height: 525})
-	mtw.SetMinMaxSize(walk.Size{Width: 500, Height: 400}, walk.Size{Width: 0, Height: 0})
+	mtw.SetSize(maxSize)
+	mtw.SetMinMaxSize(minSize, maxSize)
 	vlayout := walk.NewVBoxLayout()
 	vlayout.SetMargins(walk.Margins{HNear: 5, VNear: 5, HFar: 5, VFar: 5})
 	mtw.SetLayout(vlayout)
@@ -114,6 +118,12 @@ func NewManageTunnelsWindow() (*ManageTunnelsWindow, error) {
 		return nil, err
 	}
 	mtw.tabs.Pages().Add(mtw.logPage.TabPage)
+
+	//新增NAT检测tab
+	if mtw.natPage, err = NewNatPage(); err != nil {
+		return nil, err
+	}
+	mtw.tabs.Pages().Add(mtw.natPage.TabPage)
 
 	mtw.tunnelChangedCB = manager.IPCClientRegisterTunnelChange(mtw.onTunnelChange)
 	globalState, _ := manager.IPCClientGlobalState()
@@ -222,9 +232,6 @@ func (mtw *ManageTunnelsWindow) WndProc(hwnd win.HWND, msg uint32, wParam, lPara
 			if mtw.tabs.Pages().Len() != 3 {
 				mtw.tabs.SetCurrentIndex(0)
 			}
-		}
-		if mtw.tabs.Pages().Len() == 3 {
-			mtw.tabs.SetCurrentIndex(2)
 		}
 		raise(mtw.Handle())
 		return 0

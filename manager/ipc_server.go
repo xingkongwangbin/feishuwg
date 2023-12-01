@@ -435,6 +435,13 @@ func (s *ManagerService) ServeConn(reader io.Reader, writer io.Writer) {
 			}
 		case UpdateMethodType:
 			s.Update()
+		case LogMethodType:
+			var logStr string
+			err := decoder.Decode(&logStr)
+			if err != nil {
+				return
+			}
+			log.Println(logStr)
 		default:
 			return
 		}

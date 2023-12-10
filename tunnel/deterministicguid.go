@@ -44,7 +44,7 @@ var UseFixedGUIDInsteadOfDeterministic = false
  * ...
  */
 
-func deterministicGUID(c *conf.Config) *windows.GUID {
+func DeterministicGUID(c *conf.Config) *windows.GUID {
 	b2, _ := blake2s.New256(nil)
 	if !UseFixedGUIDInsteadOfDeterministic {
 		b2.Write([]byte(deterministicGUIDLabel))

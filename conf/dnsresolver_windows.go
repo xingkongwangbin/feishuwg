@@ -17,7 +17,7 @@ import (
 	"golang.zx2c4.com/wireguard/windows/services"
 )
 
-func resolveHostname(name string) (resolvedIPString string, err error) {
+func ResolveHostname(name string) (resolvedIPString string, err error) {
 	maxTries := 10
 	if services.StartedAtBoot() {
 		maxTries *= 3
@@ -88,7 +88,7 @@ func (config *Config) ResolveEndpoints() error {
 			continue
 		}
 		var err error
-		config.Peers[i].Endpoint.Host, err = resolveHostname(config.Peers[i].Endpoint.Host)
+		config.Peers[i].Endpoint.Host, err = ResolveHostname(config.Peers[i].Endpoint.Host)
 		if err != nil {
 			return err
 		}

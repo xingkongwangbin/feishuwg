@@ -9,9 +9,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"net"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -24,7 +22,8 @@ var (
 )
 
 type Tunnel struct {
-	Name string
+	Name       string
+	P2POpening bool
 }
 
 type TunnelState int
@@ -64,6 +63,7 @@ const (
 	UpdateStateMethodType
 	UpdateMethodType
 	LogMethodType
+	SetConfigurationMethodType
 )
 
 var (
@@ -250,8 +250,7 @@ func (t *Tunnel) RuntimeConfig() (c conf.Config, err error) {
 }
 
 func (t *Tunnel) Start() (err error) {
-	var cf conf.Config
-	cf, err = t.StoredConfig()
+	cf, err := t.StoredConfig()
 	if err != nil {
 		return
 	}
@@ -271,31 +270,28 @@ func (t *Tunnel) Start() (err error) {
 		return
 	}
 
-	hip := make(map[string][]string, 0)
-	for _, v := range cf.Peers {
-		var oldIPs []net.IP
+	if t.P2POpening {
+		return
+	}
 
-		oldIPs, err = net.LookupIP(v.Endpoint.Host)
+	hip := make(map[string]string, 0)
+	for _, v := range cf.Peers {
+		var ip string
+		ip, err = conf.ResolveHostname(v.Endpoint.Host)
 		if err != nil {
 			t.Stop()
-			return
+			return err
 		}
 
-		for _, ip := range oldIPs {
-			hip[v.Endpoint.Host] = append(hip[v.Endpoint.Host], ip.String())
-		}
+		hip[v.Endpoint.Host] = ip
 
 		if len(hip[v.Endpoint.Host]) == 0 {
-			if err = rpcEncoder.Encode(LogMethodType); err != nil {
-				return
-			}
-
-			if err = rpcEncoder.Encode(fmt.Sprintf("解析域名[%s]ip失败", v.Endpoint.Host)); err != nil {
+			t.Stop()
+			if err = SendLog(fmt.Sprintf("解析域名[%s]ip失败", v.Endpoint.Host)); err != nil {
 				return
 			}
 
 			err = fmt.Errorf("解析域名[%s]ip失败", v.Endpoint.Host)
-			t.Stop()
 			return
 		}
 	}
@@ -312,6 +308,7 @@ func (t *Tunnel) Start() (err error) {
 
 func (t *Tunnel) Stop() (err error) {
 	runningTunnelMap[t.Name] = false
+	t.P2POpening = false
 
 	rpcMutex.Lock()
 	defer rpcMutex.Unlock()
@@ -343,57 +340,46 @@ func (t *Tunnel) Toggle() (oldState TunnelState, err error) {
 	return
 }
 
-func (t *Tunnel) ListenIp(name string, cf conf.Config, hip map[string][]string) {
+func (t *Tunnel) ListenIp(name string, cf conf.Config, hip map[string]string) {
+	time.Sleep(time.Second * 2)
+
 	var (
 		err                error
 		host, newIP, oldIP string
 	)
 
-Loop:
 	for {
 		if !runningTunnelMap[name] {
 			return
 		}
 
-		for _, v := range cf.Peers {
-			newIPs, err := net.LookupIP(v.Endpoint.Host)
+		for k, v := range cf.Peers {
+			newIP, err = conf.ResolveHostname(v.Endpoint.Host)
 			if err != nil {
 				continue
 			}
 
-			for _, h := range hip[v.Endpoint.Host] {
-				isExist := false
-				for _, ip := range newIPs {
-					if h == ip.String() {
-						isExist = true
-					}
+			if hip[v.Endpoint.Host] != newIP {
+				host = v.Endpoint.Host
+				oldIP = hip[v.Endpoint.Host]
+				cf.Peers[k].Endpoint.Host = newIP
+
+				if err = SendLog(fmt.Sprintf("[%s] host:%s, ip发生改变,原ip为: %s  新ip为: %s", name, host, oldIP, newIP)); err != nil {
+					return
 				}
 
-				if !isExist {
-					host = v.Endpoint.Host
-					for _, ip := range newIPs {
-						newIP = newIP + "," + ip.String()
-					}
-					oldIP = strings.Join(hip[v.Endpoint.Host], ",")
-					break Loop
+				err = t.SetConfiguration(&cf)
+				if err != nil {
+					SendLog(err.Error())
 				}
+
+				hip[v.Endpoint.Host] = newIP
+				cf.Peers[k].Endpoint.Host = host
 			}
 		}
 
-		time.Sleep(time.Second * 30)
+		time.Sleep(time.Second * 60)
 	}
-
-	if err = rpcEncoder.Encode(LogMethodType); err != nil {
-		return
-	}
-
-	if err = rpcEncoder.Encode(fmt.Sprintf("[%s] host:%s, ip发生改变,原ip为: %s  新ip为: %s", name, host, oldIP, newIP)); err != nil {
-		return
-	}
-
-	t.Toggle()
-	time.Sleep(time.Second * 2)
-	t.Toggle()
 }
 
 func (t *Tunnel) WaitForStop() (err error) {
@@ -445,6 +431,18 @@ func (t *Tunnel) State() (tunnelState TunnelState, err error) {
 		return
 	}
 	err = rpcDecodeError()
+	return
+}
+
+func (t *Tunnel) SetConfiguration(cf *conf.Config) (err error) {
+	if err = rpcEncoder.Encode(SetConfigurationMethodType); err != nil {
+		return
+	}
+
+	if err = rpcEncoder.Encode(cf); err != nil {
+		return
+	}
+
 	return
 }
 
@@ -589,4 +587,16 @@ func IPCClientRegisterUpdateProgress(cb func(dp updater.DownloadProgress)) *Upda
 
 func (cb *UpdateProgressCallback) Unregister() {
 	delete(updateProgressCallbacks, cb)
+}
+
+func SendLog(logStr string) (err error) {
+	if err = rpcEncoder.Encode(LogMethodType); err != nil {
+		return
+	}
+
+	if err = rpcEncoder.Encode(logStr); err != nil {
+		return
+	}
+
+	return
 }

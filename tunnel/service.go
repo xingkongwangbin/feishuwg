@@ -157,7 +157,7 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 			time.Sleep(time.Second)
 			log.Printf("Retrying adapter creation after failure because system just booted (T+%v): %v", windows.DurationSinceBoot(), err)
 		}
-		adapter, err = driver.CreateAdapter(config.Name, "WireGuard", deterministicGUID(config))
+		adapter, err = driver.CreateAdapter(config.Name, "WireGuard", DeterministicGUID(config))
 		if err == nil || !services.StartedAtBoot() {
 			break
 		}

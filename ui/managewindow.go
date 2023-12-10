@@ -24,6 +24,7 @@ type ManageTunnelsWindow struct {
 	tunnelsPage *TunnelsPage
 	logPage     *LogPage
 	natPage     *NatPage
+	p2pPage     *P2PPage
 	updatePage  *UpdatePage
 
 	tunnelChangedCB *manager.TunnelChangeCallback
@@ -124,6 +125,12 @@ func NewManageTunnelsWindow() (*ManageTunnelsWindow, error) {
 		return nil, err
 	}
 	mtw.tabs.Pages().Add(mtw.natPage.TabPage)
+
+	//新增P2P打洞tab
+	if mtw.p2pPage, err = NewP2PPage(); err != nil {
+		return nil, err
+	}
+	mtw.tabs.Pages().Add(mtw.p2pPage.TabPage)
 
 	mtw.tunnelChangedCB = manager.IPCClientRegisterTunnelChange(mtw.onTunnelChange)
 	globalState, _ := manager.IPCClientGlobalState()

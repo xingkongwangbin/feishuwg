@@ -122,7 +122,7 @@ func (np *NatPage) NewIntroView() error {
 		return err
 	}
 
-	detailsLabel.SetText("1. 完全锥形NAT\n\n2. 限制锥形NAT\n\n3. 端口限制锥形NAT\n\n4. 对称NAT")
+	detailsLabel.SetText("1. Full Cone NAT - 完全锥形NAT\n\n2. Restricted Cone NAT - 限制锥形NAT\n\n3. Port Restricted Cone NAT - 端口限制锥形NAT\n\n4. Symmetric NAT - 对称NAT")
 
 	return nil
 }

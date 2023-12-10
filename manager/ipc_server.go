@@ -12,6 +12,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -442,6 +443,31 @@ func (s *ManagerService) ServeConn(reader io.Reader, writer io.Writer) {
 				return
 			}
 			log.Println(logStr)
+		case SetConfigurationMethodType:
+			var config conf.Config
+			err := decoder.Decode(&config)
+			if err != nil {
+				return
+			}
+			err = config.Save(true)
+			if err != nil {
+				return
+			}
+			if len(config.Interface.Addresses) > 0 {
+				cmd := exec.Command("netsh", "interface", "ipv4", "set", "address", "name="+config.Name, "static", config.Interface.Addresses[0].Addr().String())
+				cmd.Run()
+			}
+			adapter, err := findDriverAdapter(config.Name)
+			if err != nil {
+				adapter.Unlock()
+				return
+			}
+			err = adapter.SetConfiguration(config.ToDriverConfiguration())
+			if err != nil {
+				adapter.Unlock()
+				return
+			}
+			adapter.Unlock()
 		default:
 			return
 		}

@@ -27,7 +27,7 @@ func (e *ParseError) Error() string {
 	return l18n.Sprintf("%s: %q", e.why, e.offender)
 }
 
-func parseIPCidr(s string) (netip.Prefix, error) {
+func ParseIPCidr(s string) (netip.Prefix, error) {
 	ipcidr, err := netip.ParsePrefix(s)
 	if err == nil {
 		return ipcidr, nil
@@ -48,7 +48,7 @@ func parseEndpoint(s string) (*Endpoint, error) {
 	if len(host) < 1 {
 		return nil, &ParseError{l18n.Sprintf("Invalid endpoint host"), host}
 	}
-	port, err := parsePort(portStr)
+	port, err := ParsePort(portStr)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func parseMTU(s string) (uint16, error) {
 	return uint16(m), nil
 }
 
-func parsePort(s string) (uint16, error) {
+func ParsePort(s string) (uint16, error) {
 	m, err := strconv.Atoi(s)
 	if err != nil {
 		return 0, err
@@ -205,7 +205,7 @@ func FromWgQuick(s, name string) (*Config, error) {
 				conf.Interface.PrivateKey = *k
 				sawPrivateKey = true
 			case "listenport":
-				p, err := parsePort(val)
+				p, err := ParsePort(val)
 				if err != nil {
 					return nil, err
 				}
@@ -222,7 +222,7 @@ func FromWgQuick(s, name string) (*Config, error) {
 					return nil, err
 				}
 				for _, address := range addresses {
-					a, err := parseIPCidr(address)
+					a, err := ParseIPCidr(address)
 					if err != nil {
 						return nil, err
 					}
@@ -278,7 +278,7 @@ func FromWgQuick(s, name string) (*Config, error) {
 					return nil, err
 				}
 				for _, address := range addresses {
-					a, err := parseIPCidr(address)
+					a, err := ParseIPCidr(address)
 					if err != nil {
 						return nil, err
 					}

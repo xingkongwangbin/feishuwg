@@ -13,6 +13,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -443,6 +444,24 @@ func (s *ManagerService) ServeConn(reader io.Reader, writer io.Writer) {
 				return
 			}
 			log.Println(logStr)
+		case SetIPMethodType:
+			var config conf.Config
+			err := decoder.Decode(&config)
+			if err != nil {
+				return
+			}
+			adapter, err := findDriverAdapter(config.Name)
+			if err != nil {
+				adapter.Unlock()
+				return
+			}
+			err = adapter.SetConfiguration(config.ToDriverConfiguration())
+			if err != nil {
+				adapter.Unlock()
+				releaseDriverAdapter(config.Name)
+				return
+			}
+			adapter.Unlock()
 		case SetConfigurationMethodType:
 			var config conf.Config
 			err := decoder.Decode(&config)
@@ -454,7 +473,7 @@ func (s *ManagerService) ServeConn(reader io.Reader, writer io.Writer) {
 				return
 			}
 			if len(config.Interface.Addresses) > 0 {
-				cmd := exec.Command("netsh", "interface", "ipv4", "set", "address", "name="+config.Name, "static", config.Interface.Addresses[0].Addr().String())
+				cmd := exec.Command("netsh", "interface", "ipv4", "set", "address", "name="+config.Name, "static", config.Interface.Addresses[0].Addr().String(), "255.255.255.0")
 				cmd.Run()
 			}
 			adapter, err := findDriverAdapter(config.Name)
@@ -465,9 +484,19 @@ func (s *ManagerService) ServeConn(reader io.Reader, writer io.Writer) {
 			err = adapter.SetConfiguration(config.ToDriverConfiguration())
 			if err != nil {
 				adapter.Unlock()
+				releaseDriverAdapter(config.Name)
 				return
 			}
 			adapter.Unlock()
+		case AddFireWallRuleMethodType:
+			var rule string
+			err := decoder.Decode(&rule)
+			if err != nil {
+				return
+			}
+			command := strings.Split(rule, " ")
+			cmd := exec.Command(command[0], command[1:]...)
+			cmd.Run()
 		default:
 			return
 		}

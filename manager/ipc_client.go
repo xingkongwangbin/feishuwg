@@ -19,11 +19,11 @@ import (
 
 var (
 	runningTunnelMap = make(map[string]bool)
+	tunnelIsP2PMap   = make(map[string]bool)
 )
 
 type Tunnel struct {
-	Name       string
-	P2POpening bool
+	Name string
 }
 
 type TunnelState int
@@ -63,7 +63,9 @@ const (
 	UpdateStateMethodType
 	UpdateMethodType
 	LogMethodType
+	SetIPMethodType
 	SetConfigurationMethodType
+	AddFireWallRuleMethodType
 )
 
 var (
@@ -250,6 +252,8 @@ func (t *Tunnel) RuntimeConfig() (c conf.Config, err error) {
 }
 
 func (t *Tunnel) Start() (err error) {
+	runningTunnelMap[t.Name] = true
+
 	cf, err := t.StoredConfig()
 	if err != nil {
 		return
@@ -270,7 +274,7 @@ func (t *Tunnel) Start() (err error) {
 		return
 	}
 
-	if t.P2POpening {
+	if t.IsP2P() {
 		return
 	}
 
@@ -296,11 +300,6 @@ func (t *Tunnel) Start() (err error) {
 		}
 	}
 
-	for k := range runningTunnelMap {
-		runningTunnelMap[k] = false
-	}
-	runningTunnelMap[t.Name] = true
-
 	go t.ListenIp(t.Name, cf, hip)
 
 	return
@@ -308,7 +307,11 @@ func (t *Tunnel) Start() (err error) {
 
 func (t *Tunnel) Stop() (err error) {
 	runningTunnelMap[t.Name] = false
-	t.P2POpening = false
+
+	if t.IsP2P() {
+		defer t.Delete()
+		delete(tunnelIsP2PMap, t.Name)
+	}
 
 	rpcMutex.Lock()
 	defer rpcMutex.Unlock()
@@ -349,7 +352,7 @@ func (t *Tunnel) ListenIp(name string, cf conf.Config, hip map[string]string) {
 	)
 
 	for {
-		if !runningTunnelMap[name] {
+		if !t.IsRunning() {
 			return
 		}
 
@@ -368,7 +371,7 @@ func (t *Tunnel) ListenIp(name string, cf conf.Config, hip map[string]string) {
 					return
 				}
 
-				err = t.SetConfiguration(&cf)
+				err = t.SetIP(&cf)
 				if err != nil {
 					SendLog(err.Error())
 				}
@@ -434,6 +437,18 @@ func (t *Tunnel) State() (tunnelState TunnelState, err error) {
 	return
 }
 
+func (t *Tunnel) SetIP(cf *conf.Config) (err error) {
+	if err = rpcEncoder.Encode(SetIPMethodType); err != nil {
+		return
+	}
+
+	if err = rpcEncoder.Encode(cf); err != nil {
+		return
+	}
+
+	return
+}
+
 func (t *Tunnel) SetConfiguration(cf *conf.Config) (err error) {
 	if err = rpcEncoder.Encode(SetConfigurationMethodType); err != nil {
 		return
@@ -444,6 +459,26 @@ func (t *Tunnel) SetConfiguration(cf *conf.Config) (err error) {
 	}
 
 	return
+}
+
+func (t *Tunnel) IsRunning() bool {
+	if v, ok := runningTunnelMap[t.Name]; ok {
+		return v
+	}
+
+	return false
+}
+
+func (t *Tunnel) IsP2P() bool {
+	if v, ok := tunnelIsP2PMap[t.Name]; ok {
+		return v
+	}
+
+	return false
+}
+
+func (t *Tunnel) SetP2P() {
+	tunnelIsP2PMap[t.Name] = true
 }
 
 func IPCClientGlobalState() (tunnelState TunnelState, err error) {
@@ -595,6 +630,20 @@ func SendLog(logStr string) (err error) {
 	}
 
 	if err = rpcEncoder.Encode(logStr); err != nil {
+		return
+	}
+
+	return
+}
+
+func AddFireWallRule(port int) (err error) {
+	if err = rpcEncoder.Encode(AddFireWallRuleMethodType); err != nil {
+		return
+	}
+
+	rule := fmt.Sprintf(`netsh advfirewall firewall add rule name="feishu" dir=in action=allow protocol=TCP localport=%d`, port)
+
+	if err = rpcEncoder.Encode(rule); err != nil {
 		return
 	}
 
